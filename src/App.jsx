@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-// Vercel Build Trigger: v1.0.1
+// Vercel Build Trigger: v1.0.2
 import {
     LayoutGrid,
     CreditCard,
