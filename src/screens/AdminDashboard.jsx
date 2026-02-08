@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import {
     Users,
@@ -18,7 +18,7 @@ const AdminDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState({ total: 0, pending: 0, approved: 0 });
 
-    const fetchAllLoans = async () => {
+    const fetchAllLoans = useCallback(async () => {
         setLoading(true);
         try {
             const { data, error } = await supabase
@@ -44,7 +44,7 @@ const AdminDashboard = () => {
             console.error('Error fetching admin data:', error);
         }
         setLoading(false);
-    };
+    }, []);
 
     const calculateStats = (data) => {
         setStats({
@@ -71,7 +71,7 @@ const AdminDashboard = () => {
 
     useEffect(() => {
         fetchAllLoans();
-    }, []);
+    }, [fetchAllLoans]);
 
     return (
         <div className="min-h-screen bg-slate-950 text-white font-['Outfit'] p-8">
