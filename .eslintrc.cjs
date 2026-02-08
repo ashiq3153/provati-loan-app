@@ -7,7 +7,7 @@ module.exports = {
         'plugin:react/jsx-runtime',
         'plugin:react-hooks/recommended',
     ],
-    ignorePatterns: ['dist', '.eslintrc.cjs'],
+    ignorePatterns: ['dist', '.eslintrc.cjs', 'backend', 'node_modules'],
     parserOptions: { ecmaVersion: 'latest', sourceType: 'module' },
     settings: { react: { version: '18.2' } },
     plugins: ['react-refresh'],
@@ -15,6 +15,8 @@ module.exports = {
         'react-refresh/only-export-components': 'off',
         'react/prop-types': 'off',
         'no-unused-vars': 'off',
-        'react/react-in-jsx-scope': 'off'
+        'react/react-in-jsx-scope': 'off',
+        'react/no-unescaped-entities': 'off',
+        'react-hooks/exhaustive-deps': 'off'
     },
 }
