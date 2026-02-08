@@ -1,0 +1,77 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-primary: 'Outfit', Inter, system-ui, sans-serif;
+  color-scheme: light dark;
+
+  /* Brand Colors */
+  --emerald-50: #ecfdf5;
+  --emerald-100: #d1fae5;
+  --emerald-500: #10b981;
+  --emerald-600: #059669;
+  --emerald-700: #047857;
+
+  --slate-50: #f8fafc;
+  --slate-100: #f1f5f9;
+  --slate-900: #0f172a;
+  --slate-950: #020617;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-primary);
+  background-color: var(--slate-50);
+  color: var(--slate-900);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+}
+
+.dark body {
+  background-color: var(--slate-950);
+  color: white;
+}
+
+/* Premium Shadows */
+.shadow-premium {
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.04), 0 4px 10px -2px rgba(0, 0, 0, 0.01);
+}
+
+.shadow-emerald-glow {
+  box-shadow: 0 15px 30px -5px rgba(16, 185, 129, 0.25);
+}
+
+/* Utils */
+.glass {
+  @apply backdrop-blur-xl border border-white/20;
+}
+
+.dark .glass {
+  @apply border-white/10;
+}
+
+.premium-card {
+  @apply rounded-[2rem] bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 shadow-premium transition-all duration-300;
+}
+
+.input-premium {
+  @apply w-full px-6 py-4 rounded-2xl border-2 border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 transition-all duration-300;
+}
+
+.btn-primary {
+  @apply bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white font-bold py-4 rounded-2xl shadow-emerald-glow active:scale-[0.98] transition-all duration-300;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
