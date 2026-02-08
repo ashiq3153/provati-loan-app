@@ -39,37 +39,83 @@ const UserApp = () => {
     const [currentScreen, setCurrentScreen] = useState('login');
     const [currentPage, setCurrentPage] = useState('home');
     const [loading, setLoading] = useState(false);
-    const [loginForm, setLoginForm] = useState({ username: '', password: '' });
     const [loanForm, setLoanForm] = useState({ loanType: 'Micro-Enterprise', amount: 15000, period: '12 Months', dataConfirmed: false });
     const [profileForm, setProfileForm] = useState({ fullName: '', dob: '1995-05-15', gender: 'Male', nid: '', job: 'Micro-Entrepreneur', income: '35000' });
     const [myLoans, setMyLoans] = useState([]);
 
-    const handleLogin = async (e) => {
-        if (e) e.preventDefault();
+    const handleLogin = async (idOrEmail, password) => {
         setLoading(true);
         try {
             const { data, error } = await supabase
                 .from('users')
                 .select('*')
-                .eq('username', loginForm.username)
-                .eq('password', loginForm.password)
-                .single();
+                .or(`username.eq.${idOrEmail},email.eq.${idOrEmail}`)
+                .eq('password', password)
+                .maybeSingle();
 
             if (error || !data) {
-                alert('Invalid username or password');
+                alert('Invalid User ID/Email or password');
             } else {
-                setUser({ ...user, username: data.username, id: data.id });
+                setUser({
+                    ...user,
+                    username: data.username,
+                    id: data.id,
+                    fullName: data.full_name,
+                    email: data.email
+                });
                 setIsLoggedIn(true);
                 setCurrentScreen('home');
                 fetchLoans(data.id);
             }
         } catch (error) {
             console.error('Login error:', error);
-            // Fallback for demo
-            setIsLoggedIn(true);
-            setCurrentScreen('home');
+            alert('An unexpected error occurred. Please try again.');
         }
         setLoading(false);
+    };
+
+    const handleRegister = async (registerData) => {
+        setLoading(true);
+        try {
+            // Check if user already exists
+            const { data: existingUser, error: checkError } = await supabase
+                .from('users')
+                .select('id')
+                .or(`username.eq.${registerData.userId},email.eq.${registerData.email}`)
+                .maybeSingle();
+
+            if (existingUser) {
+                alert('User ID or Email already registered.');
+                setLoading(false);
+                return false;
+            }
+
+            const { error } = await supabase
+                .from('users')
+                .insert([
+                    {
+                        username: registerData.userId,
+                        password: registerData.password,
+                        email: registerData.email,
+                        full_name: registerData.fullName
+                    }
+                ]);
+
+            if (error) {
+                alert('Registration failed: ' + error.message);
+                setLoading(false);
+                return false;
+            } else {
+                alert('Registration Successful! You can now login.');
+                setLoading(false);
+                return true;
+            }
+        } catch (error) {
+            console.error('Registration error:', error);
+            alert('An error occurred during registration.');
+            setLoading(false);
+            return false;
+        }
     };
 
     const fetchLoans = async (userId = user.id) => {
@@ -114,7 +160,15 @@ const UserApp = () => {
     };
 
     const renderScreen = () => {
-        if (!isLoggedIn) return <LoginScreen loginForm={loginForm} setLoginForm={setLoginForm} darkMode={darkMode} setDarkMode={setDarkMode} handleLogin={handleLogin} loading={loading} />;
+        if (!isLoggedIn) return (
+            <LoginScreen
+                darkMode={darkMode}
+                setDarkMode={setDarkMode}
+                handleLogin={handleLogin}
+                handleRegister={handleRegister}
+                loading={loading}
+            />
+        );
 
         let content;
         switch (currentScreen) {
