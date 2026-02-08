@@ -286,7 +286,7 @@ const LoginScreen = ({ darkMode, setDarkMode, handleLogin, handleRegister, loadi
                                 <Globe className="w-8 h-8" />
                             </div>
                             <h3 className="text-xl font-black tracking-tight mb-2">Recover Access</h3>
-                            <p className="text-xs font-medium text-slate-500 mb-8 px-4">Enter your registered email and we'll send recovery instructions.</p>
+                            <p className="text-xs font-medium text-slate-500 mb-8 px-4">Enter your registered email and we&apos;ll send recovery instructions.</p>
 
                             <InputField
                                 icon={Mail}
