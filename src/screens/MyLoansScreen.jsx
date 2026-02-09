@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { ArrowLeft, Search, Clock, CheckCircle2, AlertTriangle, TrendingUp } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { supabase } from '../../lib/supabase';
+import { supabase } from '../lib/supabase';
 
 const MyLoansScreen = ({ darkMode, setCurrentPage }) => {
     const [loans, setLoans] = useState([]);
@@ -104,7 +104,7 @@ const MyLoansScreen = ({ darkMode, setCurrentPage }) => {
                                 animate={{ opacity: 1, x: 0 }}
                                 transition={{ delay: index * 0.1 }}
                                 className={`premium-card p-6 flex items-center justify-between group cursor-pointer border-l-4 ${loan.status === 'Active' ? 'border-l-emerald-500' :
-                                        loan.status === 'Rejected' ? 'border-l-rose-500' : 'border-l-amber-500'
+                                    loan.status === 'Rejected' ? 'border-l-rose-500' : 'border-l-amber-500'
                                     }`}
                             >
                                 <div className="flex items-center gap-4">
