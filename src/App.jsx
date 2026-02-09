@@ -28,6 +28,7 @@ import DocumentUploadScreen from './screens/ProfileFlow/DocumentUploadScreen';
 import MyLoansScreen from './screens/MyLoansScreen';
 import StatsScreen from './screens/StatsScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
+import ResetPasswordScreen from './screens/ResetPasswordScreen';
 
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import AdminDashboard from './screens/AdminDashboard';
@@ -40,6 +41,7 @@ const UserApp = () => {
     const [currentScreen, setCurrentScreen] = useState('login');
     const [currentPage, setCurrentPage] = useState('home');
     const [loading, setLoading] = useState(false);
+    const [isPasswordReset, setIsPasswordReset] = useState(false);
     const [loanForm, setLoanForm] = useState({ loanType: 'Micro-Enterprise', amount: 15000, period: '12 Months', dataConfirmed: false });
     const [profileForm, setProfileForm] = useState({ fullName: '', dob: '1995-05-15', gender: 'Male', nid: '', job: 'Micro-Entrepreneur', income: '35000' });
     const [myLoans, setMyLoans] = useState([]);
@@ -51,12 +53,16 @@ const UserApp = () => {
             }
         });
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            if (session) {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            console.log("Auth Event:", event);
+            if (event === 'PASSWORD_RECOVERY') {
+                setIsPasswordReset(true);
+            } else if (event === 'SIGNED_IN' && session) {
                 fetchUserProfile(session.user.id);
-            } else {
+            } else if (event === 'SIGNED_OUT') {
                 setIsLoggedIn(false);
                 setUser({ id: null, username: 'Guest', profileCompletion: 0 });
+                setIsPasswordReset(false);
             }
         });
 
@@ -90,19 +96,28 @@ const UserApp = () => {
 
     const handleLogin = async (idOrEmail, password) => {
         setLoading(true);
+        console.log("Attempting login update with:", idOrEmail); // Debug Log
+
         try {
             let email = idOrEmail;
 
             // If it doesn't look like an email, try to find the email by username in profiles
             if (!idOrEmail.includes('@')) {
-                const { data: profile } = await supabase
+                const { data: profile, error: profileError } = await supabase
                     .from('profiles')
                     .select('email')
                     .eq('username', idOrEmail)
                     .maybeSingle();
 
+                if (profileError) {
+                    console.error("Profile lookup error:", profileError);
+                }
+
                 if (profile) {
                     email = profile.email;
+                    console.log("Resolved username to email:", email);
+                } else {
+                    console.warn("Username not found in profiles.");
                 }
             }
 
@@ -111,11 +126,50 @@ const UserApp = () => {
                 password,
             });
 
-            if (error) throw error;
+            if (error) {
+                console.error("Login Error:", error);
+                throw error;
+            }
+
+            console.log("Login Successful:", data);
+
         } catch (error) {
+            console.error("Catch Block Login Error:", error);
             alert('Login failed: ' + error.message);
         }
         setLoading(false);
+    };
+
+    const handleForgotPassword = async (email) => {
+        setLoading(true);
+        try {
+            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: `${window.location.origin}/update-password`,
+            });
+            if (error) throw error;
+            alert('Password reset link sent to your email!');
+        } catch (error) {
+            console.error('Reset Password Error:', error);
+            alert('Failed to send reset email: ' + error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleUpdatePassword = async (newPassword) => {
+        try {
+            const { error } = await supabase.auth.updateUser({ password: newPassword });
+            if (error) throw error;
+            alert('Password updated successfully! Please login with your new password.');
+            setIsPasswordReset(false);
+            // After update, user is logged in, so we might need to fetch profile or just redirect to home
+            // But let's just let the auth listener handle the session update or force logout to re-login
+            await supabase.auth.signOut(); // Force re-login for security
+            setIsLoggedIn(false);
+        } catch (error) {
+            console.error('Update Password Error:', error);
+            alert('Failed to update password: ' + error.message);
+        }
     };
 
     const handleLogout = async () => {
@@ -274,6 +328,10 @@ const UserApp = () => {
     };
 
     const renderScreen = () => {
+        if (isPasswordReset) {
+            return <ResetPasswordScreen darkMode={darkMode} handleUpdatePassword={handleUpdatePassword} />;
+        }
+
         if (!isLoggedIn) return (
             <LoginScreen
                 darkMode={darkMode}
@@ -282,6 +340,7 @@ const UserApp = () => {
                 handleRegister={handleRegister}
                 handleSendOtp={handleSendOtp}
                 handleVerifyOtp={handleVerifyOtp}
+                handleForgotPassword={handleForgotPassword}
                 loading={loading}
             />
         );

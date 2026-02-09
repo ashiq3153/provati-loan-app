@@ -42,7 +42,7 @@ const InputField = ({ icon: Icon, label, type, placeholder, value, onChange, err
     </motion.div>
 );
 
-const LoginScreen = ({ darkMode, setDarkMode, handleLogin, handleRegister, handleSendOtp, handleVerifyOtp, loading }) => {
+const LoginScreen = ({ darkMode, setDarkMode, handleLogin, handleRegister, handleSendOtp, handleVerifyOtp, handleForgotPassword, loading }) => {
     const [mode, setMode] = useState('login'); // 'login', 'register', 'forgot'
     const [formData, setFormData] = useState({
         userId: '',
@@ -134,6 +134,16 @@ const LoginScreen = ({ darkMode, setDarkMode, handleLogin, handleRegister, handl
             setOtpSent(true);
             setResendTimer(120); // 120 seconds (2 minutes) for email delivery
         }
+    };
+
+    const onForgotPassword = async (e) => {
+        e.preventDefault();
+        if (!formData.email || !formData.email.includes('@')) {
+            alert('Please enter a valid email address.');
+            return;
+        }
+        await handleForgotPassword(formData.email);
+        setMode('login');
     };
 
     const verifyOtp = async () => {
@@ -408,25 +418,29 @@ const LoginScreen = ({ darkMode, setDarkMode, handleLogin, handleRegister, handl
                             exit="exit"
                             className={`premium-card p-8 text-center ${darkMode ? 'bg-slate-900 border-slate-800' : 'bg-white border-white shadow-xl'}`}
                         >
-                            <div className="w-16 h-16 rounded-3xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center mx-auto mb-6">
-                                <Globe className="w-8 h-8" />
-                            </div>
-                            <h3 className="text-xl font-black tracking-tight mb-2">Recover Access</h3>
-                            <p className="text-xs font-medium text-slate-500 mb-8 px-4">Enter your registered email and we&apos;ll send recovery instructions.</p>
+                            <form onSubmit={onForgotPassword}>
+                                <div className="w-16 h-16 rounded-3xl bg-emerald-500/10 text-emerald-500 flex items-center justify-center mx-auto mb-6">
+                                    <Globe className="w-8 h-8" />
+                                </div>
+                                <h3 className="text-xl font-black tracking-tight mb-2">Recover Access</h3>
+                                <p className="text-xs font-medium text-slate-500 mb-8 px-4">Enter your registered email and we&apos;ll send recovery instructions.</p>
 
-                            <InputField
-                                icon={Mail}
-                                label="Email"
-                                type="email"
-                                placeholder="Enter your email"
-                                darkMode={darkMode}
-                                variants={itemVariants}
-                            />
+                                <InputField
+                                    icon={Mail}
+                                    label="Email"
+                                    type="email"
+                                    placeholder="Enter your email"
+                                    value={formData.email}
+                                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                                    darkMode={darkMode}
+                                    variants={itemVariants}
+                                />
 
-                            <div className="mt-8 space-y-4">
-                                <button className="w-full btn-primary py-4 text-[10px]">Send Recovery Link</button>
-                                <button onClick={() => setMode('login')} className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-emerald-500">Back to Portal</button>
-                            </div>
+                                <div className="mt-8 space-y-4">
+                                    <button type="submit" className="w-full py-5 rounded-2xl bg-emerald-500 text-white font-black text-[10px] uppercase tracking-widest hover:bg-emerald-600 transition-colors shadow-emerald-glow">Send Recovery Link</button>
+                                    <button type="button" onClick={() => setMode('login')} className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-emerald-500 transition-colors">Back to Portal</button>
+                                </div>
+                            </form>
                         </motion.div>
                     )}
                 </AnimatePresence>
