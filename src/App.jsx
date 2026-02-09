@@ -29,6 +29,7 @@ import MyLoansScreen from './screens/MyLoansScreen';
 import StatsScreen from './screens/StatsScreen';
 import NotificationsScreen from './screens/NotificationsScreen';
 import ResetPasswordScreen from './screens/ResetPasswordScreen';
+import CustomToast from './components/CustomToast';
 
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import AdminDashboard from './screens/AdminDashboard';
@@ -42,6 +43,7 @@ const UserApp = () => {
     const [currentPage, setCurrentPage] = useState('home');
     const [loading, setLoading] = useState(false);
     const [isPasswordReset, setIsPasswordReset] = useState(false);
+    const [toast, setToast] = useState(null); // { message, type }
     const [loanForm, setLoanForm] = useState({ loanType: 'Micro-Enterprise', amount: 15000, period: '12 Months', dataConfirmed: false });
     const [profileForm, setProfileForm] = useState({ fullName: '', dob: '1995-05-15', gender: 'Male', nid: '', job: 'Micro-Entrepreneur', income: '35000' });
     const [myLoans, setMyLoans] = useState([]);
@@ -94,6 +96,11 @@ const UserApp = () => {
         }
     };
 
+    const showToast = (message, type = 'success') => {
+        setToast({ message, type });
+        setTimeout(() => setToast(null), 4000);
+    };
+
     const handleLogin = async (idOrEmail, password) => {
         setLoading(true);
         console.log("Attempting login update with:", idOrEmail); // Debug Log
@@ -135,7 +142,7 @@ const UserApp = () => {
 
         } catch (error) {
             console.error("Catch Block Login Error:", error);
-            alert('Login failed: ' + error.message);
+            showToast(error.message || 'Login failed', 'error');
         }
         setLoading(false);
     };
@@ -147,10 +154,10 @@ const UserApp = () => {
                 redirectTo: `${window.location.origin}/update-password`,
             });
             if (error) throw error;
-            alert('Password reset link sent to your email!');
+            showToast('Password reset link sent to your email!', 'success');
         } catch (error) {
             console.error('Reset Password Error:', error);
-            alert('Failed to send reset email: ' + error.message);
+            showToast(error.message || 'Failed to send reset email', 'error');
         } finally {
             setLoading(false);
         }
@@ -160,7 +167,7 @@ const UserApp = () => {
         try {
             const { error } = await supabase.auth.updateUser({ password: newPassword });
             if (error) throw error;
-            alert('Password updated successfully! Please login with your new password.');
+            showToast('Password updated! Please login.', 'success');
             setIsPasswordReset(false);
             // After update, user is logged in, so we might need to fetch profile or just redirect to home
             // But let's just let the auth listener handle the session update or force logout to re-login
@@ -168,7 +175,7 @@ const UserApp = () => {
             setIsLoggedIn(false);
         } catch (error) {
             console.error('Update Password Error:', error);
-            alert('Failed to update password: ' + error.message);
+            showToast(error.message || 'Update failed', 'error');
         }
     };
 
@@ -202,9 +209,10 @@ const UserApp = () => {
             }
         });
         if (error) {
-            alert('OTP Error: ' + error.message);
+            showToast(error.message || 'OTP Error', 'error');
             return false;
         }
+        showToast('OTP sent to your email!', 'info');
         return true;
     };
 
@@ -215,9 +223,10 @@ const UserApp = () => {
             type: 'email'
         });
         if (error) {
-            alert('Verification Error: ' + error.message);
+            showToast(error.message || 'Verification failed', 'error');
             return false;
         }
+        showToast('Email verified successfully!', 'success');
         return true;
     };
 
@@ -295,12 +304,12 @@ const UserApp = () => {
 
             if (error) throw error;
 
-            alert('Application Submitted Successfully! Our team will review your documents.');
+            showToast('Application Submitted! Our team is reviewing it.', 'success');
             setCurrentScreen('home');
             fetchLoans(user.id);
         } catch (error) {
             console.error('Loan submission error:', error);
-            alert('Failed to submit loan: ' + error.message);
+            showToast('Failed to submit loan: ' + error.message, 'error');
         } finally {
             setLoading(false);
         }
@@ -322,10 +331,10 @@ const UserApp = () => {
 
             if (error) throw error;
 
-            alert('Profile Updated Successfully!');
+            showToast('Profile Updated Successfully!', 'success');
             setUser(prev => ({ ...prev, fullName: profileForm.fullName }));
         } catch (error) {
-            alert('Failed to update profile: ' + error.message);
+            showToast('Update failed: ' + error.message, 'error');
         } finally {
             setLoading(false);
         }
@@ -360,8 +369,8 @@ const UserApp = () => {
             case 'selectLoan': content = <SelectLoanScreen loanCategories={loanCategories} darkMode={darkMode} setCurrentScreen={setCurrentScreen} />; break;
             case 'loanRequest': content = <LoanRequestScreen loanForm={loanForm} setLoanForm={setLoanForm} darkMode={darkMode} setCurrentScreen={setCurrentScreen} />; break;
             case 'loanAmount': content = <LoanAmountScreen loanForm={loanForm} setLoanForm={setLoanForm} darkMode={darkMode} setCurrentScreen={setCurrentScreen} />; break;
-            case 'completeProfile': content = <CompleteProfileScreen user={user} profileForm={profileForm} setProfileForm={setProfileForm} darkMode={darkMode} setCurrentScreen={setCurrentScreen} handleSubmitProfile={handleSubmitProfile} />; break;
-            case 'documentUpload': content = <DocumentUploadScreen darkMode={darkMode} setCurrentScreen={setCurrentScreen} handleSubmitLoan={handleSubmitLoan} />; break;
+            case 'completeProfile': content = <CompleteProfileScreen user={user} profileForm={profileForm} setProfileForm={setProfileForm} darkMode={darkMode} setCurrentScreen={setCurrentScreen} handleSubmitProfile={handleSubmitProfile} showToast={showToast} />; break;
+            case 'documentUpload': content = <DocumentUploadScreen darkMode={darkMode} setCurrentScreen={setCurrentScreen} handleSubmitLoan={handleSubmitLoan} showToast={showToast} />; break;
             case 'notifications': content = <NotificationsScreen darkMode={darkMode} setCurrentScreen={setCurrentScreen} />; break;
             default: content = <HomeVariant1 user={user} darkMode={darkMode} setDarkMode={setDarkMode} setCurrentScreen={setCurrentScreen} setCurrentPage={setCurrentPage} myLoans={myLoans} communitySuccess={communitySuccess} />;
         }
@@ -377,6 +386,16 @@ const UserApp = () => {
                 >
                     {content}
                 </motion.div>
+                <AnimatePresence>
+                    {toast && (
+                        <CustomToast
+                            message={toast.message}
+                            type={toast.type}
+                            onClose={() => setToast(null)}
+                            darkMode={darkMode}
+                        />
+                    )}
+                </AnimatePresence>
             </AnimatePresence>
         );
     };

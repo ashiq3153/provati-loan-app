@@ -2,7 +2,7 @@ import React from 'react';
 import { ArrowLeft, Check, Upload, ShieldCheck, FileText, Camera, Info } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const DocumentUploadScreen = ({ darkMode, setCurrentScreen, handleSubmitLoan }) => {
+const DocumentUploadScreen = ({ darkMode, setCurrentScreen, handleSubmitLoan, showToast }) => {
     const [uploads, setUploads] = React.useState({ nidBack: false, selfie: false });
     const [submitting, setSubmitting] = React.useState(false);
 
@@ -20,7 +20,7 @@ const DocumentUploadScreen = ({ darkMode, setCurrentScreen, handleSubmitLoan }) 
             transition: { staggerChildren: 0.1 }
         }
     };
-    // ... existing item variants ... 
+
     const item = {
         hidden: { opacity: 0, y: 15 },
         show: { opacity: 1, y: 0 }
@@ -28,7 +28,7 @@ const DocumentUploadScreen = ({ darkMode, setCurrentScreen, handleSubmitLoan }) 
 
     const onSubmit = async () => {
         if (!uploads.nidBack || !uploads.selfie) {
-            alert('Please upload all required documents.');
+            showToast('Please upload all required documents.', 'warning');
             return;
         }
         setSubmitting(true);

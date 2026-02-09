@@ -2,7 +2,7 @@ import React from 'react';
 import { ArrowLeft, User, Mail, Calendar, MapPin, Briefcase, DollarSign, ChevronRight, ShieldCheck } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const CompleteProfileScreen = ({ user, profileForm, setProfileForm, darkMode, setCurrentScreen }) => {
+const CompleteProfileScreen = ({ user, profileForm, setProfileForm, darkMode, setCurrentScreen, showToast }) => {
     const container = {
         hidden: { opacity: 0 },
         show: {
@@ -124,7 +124,7 @@ const CompleteProfileScreen = ({ user, profileForm, setProfileForm, darkMode, se
                     <button
                         onClick={() => {
                             if (!profileForm.fullName || !profileForm.dob || !profileForm.gender || !profileForm.job || !profileForm.income) {
-                                alert("Please fill in all fields to proceed.");
+                                showToast("Please fill in all fields to proceed.", "warning");
                                 return;
                             }
                             setCurrentScreen('documentUpload');
