@@ -96,7 +96,7 @@ const UserApp = () => {
         const { error } = await supabase.auth.signInWithOtp({
             email,
             options: {
-                shouldCreateUser: false, // Don't create yet, just verify email
+                shouldCreateUser: true, // Allow creating user during verification
             }
         });
         if (error) {
@@ -110,7 +110,7 @@ const UserApp = () => {
         const { error } = await supabase.auth.verifyOtp({
             email,
             token,
-            type: 'email'
+            type: 'email' // Reverting to 'email' for 6-digit token verification
         });
         if (error) {
             alert('Verification Error: ' + error.message);
