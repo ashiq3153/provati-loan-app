@@ -132,7 +132,7 @@ const LoginScreen = ({ darkMode, setDarkMode, handleLogin, handleRegister, handl
         setSendingOtp(false);
         if (success) {
             setOtpSent(true);
-            setResendTimer(60); // 60 seconds countdown
+            setResendTimer(120); // 120 seconds (2 minutes) for email delivery
         }
     };
 

@@ -174,11 +174,21 @@ const UserApp = () => {
             const { data: authData, error: authError } = await supabase.auth.signUp({
                 email: registerData.email,
                 password: registerData.password,
+                options: {
+                    emailRedirectTo: window.location.origin,
+                    data: {
+                        username: registerData.userId,
+                        full_name: registerData.fullName
+                    }
+                }
             });
 
             if (authError) throw authError;
 
             if (authData.user) {
+                // Wait a bit for auth user to be fully created
+                await new Promise(resolve => setTimeout(resolve, 1000));
+
                 // 2. Create public profile
                 const { error: profileError } = await supabase
                     .from('profiles')
@@ -191,12 +201,18 @@ const UserApp = () => {
                         }
                     ]);
 
-                if (profileError) throw profileError;
-
-                alert('Registration Successful! Please check your email for verification.');
+                if (profileError) {
+                    console.error('Profile creation error:', profileError);
+                    // If profile creation fails, still allow user to continue
+                    // They can complete profile later
+                    alert('Account created! Please login to continue.');
+                } else {
+                    alert('Registration Successful! You can now login with your credentials.');
+                }
                 return true;
             }
         } catch (error) {
+            console.error('Registration error:', error);
             alert('Registration failed: ' + error.message);
             return false;
         } finally {
