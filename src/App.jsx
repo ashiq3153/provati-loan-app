@@ -75,49 +75,6 @@ const UserApp = () => {
         setLoading(false);
     };
 
-    const handleRegister = async (registerData) => {
-        setLoading(true);
-        try {
-            // Check if user already exists
-            const { data: existingUser, error: checkError } = await supabase
-                .from('users')
-                .select('id')
-                .or(`username.eq.${registerData.userId},email.eq.${registerData.email}`)
-                .maybeSingle();
-
-            if (existingUser) {
-                alert('User ID or Email already registered.');
-                setLoading(false);
-                return false;
-            }
-
-            const { error } = await supabase
-                .from('users')
-                .insert([
-                    {
-                        username: registerData.userId,
-                        password: registerData.password,
-                        email: registerData.email,
-                        full_name: registerData.fullName
-                    }
-                ]);
-
-            if (error) {
-                alert('Registration failed: ' + error.message);
-                setLoading(false);
-                return false;
-            } else {
-                alert('Registration Successful! You can now login.');
-                setLoading(false);
-                return true;
-            }
-        } catch (error) {
-            console.error('Registration error:', error);
-            alert('An error occurred during registration.');
-            setLoading(false);
-            return false;
-        }
-    };
 
     const fetchLoans = async (userId = user.id) => {
         if (!userId) return;
@@ -135,28 +92,77 @@ const UserApp = () => {
         }
     };
 
-    const handleSubmitLoan = async () => {
+    const handleSendOtp = async (email) => {
+        const { error } = await supabase.auth.signInWithOtp({
+            email,
+            options: {
+                shouldCreateUser: false, // Don't create yet, just verify email
+            }
+        });
+        if (error) {
+            alert('OTP Error: ' + error.message);
+            return false;
+        }
+        return true;
+    };
+
+    const handleVerifyOtp = async (email, token) => {
+        const { error } = await supabase.auth.verifyOtp({
+            email,
+            token,
+            type: 'email'
+        });
+        if (error) {
+            alert('Verification Error: ' + error.message);
+            return false;
+        }
+        return true;
+    };
+
+    const handleRegister = async (registerData) => {
+        setLoading(true);
         try {
-            const { data, error } = await supabase
-                .from('loans')
+            // Since OTP verification already happens in LoginScreen via Supabase Auth,
+            // the user is now authenticated. We just need to add their info to our custom users table.
+
+            // Check if user already exists in custom table
+            const { data: existingUser } = await supabase
+                .from('users')
+                .select('id')
+                .or(`username.eq.${registerData.userId},email.eq.${registerData.email}`)
+                .maybeSingle();
+
+            if (existingUser) {
+                alert('User ID or Email already registered in our system.');
+                setLoading(false);
+                return false;
+            }
+
+            const { error } = await supabase
+                .from('users')
                 .insert([
                     {
-                        user_id: user.id,
-                        amount: loanForm.amount,
-                        purpose: loanForm.loanType,
-                        status: 'Pending Review'
+                        username: registerData.userId,
+                        password: registerData.password, // In a real app, use hashing or just Supabase Auth's password feature
+                        email: registerData.email,
+                        full_name: registerData.fullName
                     }
                 ]);
 
-            if (!error) {
-                fetchLoans();
-                setCurrentScreen('home');
-                setCurrentPage('loans');
+            if (error) {
+                alert('Profile registration failed: ' + error.message);
+                setLoading(false);
+                return false;
             } else {
-                alert('Error submitting loan: ' + error.message);
+                alert('Registration Successful! Account is now active.');
+                setLoading(false);
+                return true;
             }
         } catch (error) {
-            console.error('Submit error:', error);
+            console.error('Registration error:', error);
+            alert('An error occurred during registration.');
+            setLoading(false);
+            return false;
         }
     };
 
@@ -167,6 +173,8 @@ const UserApp = () => {
                 setDarkMode={setDarkMode}
                 handleLogin={handleLogin}
                 handleRegister={handleRegister}
+                handleSendOtp={handleSendOtp}
+                handleVerifyOtp={handleVerifyOtp}
                 loading={loading}
             />
         );

@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const InputField = ({ icon: Icon, label, type, placeholder, value, onChange, error, darkMode, variants }) => (
+const InputField = ({ icon: Icon, label, type, placeholder, value, onChange, error, darkMode, variants, action }) => (
     <motion.div variants={variants} className="space-y-1.5 group">
         <label className={`text-[10px] font-black uppercase tracking-[0.2em] ml-1 ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
             {label}
@@ -29,22 +29,32 @@ const InputField = ({ icon: Icon, label, type, placeholder, value, onChange, err
                 placeholder={placeholder}
                 value={value}
                 onChange={onChange}
-                className={`w-full pl-16 pr-6 py-4 rounded-2xl border-2 outline-none font-bold text-sm transition-all ${darkMode ? 'bg-slate-900 border-slate-800 text-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10' : 'bg-white border-slate-100 text-slate-900 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10'}`}
+                className={`w-full pl-16 ${action ? 'pr-28' : 'pr-6'} py-4 rounded-2xl border-2 outline-none font-bold text-sm transition-all ${darkMode ? 'bg-slate-900 border-slate-800 text-white focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10' : 'bg-white border-slate-100 text-slate-900 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10'}`}
             />
+            {action && (
+                <div className="absolute right-2 top-1/2 -translate-y-1/2">
+                    {action}
+                </div>
+            )}
         </div>
         {error && <p className="text-[10px] text-rose-500 font-bold ml-1">{error}</p>}
     </motion.div>
 );
 
-const LoginScreen = ({ darkMode, setDarkMode, handleLogin, handleRegister, loading }) => {
+const LoginScreen = ({ darkMode, setDarkMode, handleLogin, handleRegister, handleSendOtp, handleVerifyOtp, loading }) => {
     const [mode, setMode] = useState('login'); // 'login', 'register', 'forgot'
     const [formData, setFormData] = useState({
         userId: '',
         email: '',
         fullName: '',
         password: '',
-        confirmPassword: ''
+        confirmPassword: '',
+        otp: ''
     });
+
+    const [otpSent, setOtpSent] = useState(false);
+    const [isOtpVerified, setIsOtpVerified] = useState(false);
+    const [sendingOtp, setSendingOtp] = useState(false);
 
     const containerVariants = {
         hidden: { opacity: 0, y: 20 },
@@ -82,6 +92,10 @@ const LoginScreen = ({ darkMode, setDarkMode, handleLogin, handleRegister, loadi
             alert('User ID must contain both letters and numbers.');
             return;
         }
+        if (!isOtpVerified) {
+            alert('Please verify your email with OTP first.');
+            return;
+        }
         if (!validatePassword(formData.password)) {
             alert('Password must be at least 6 characters and contain both letters and numbers.');
             return;
@@ -93,6 +107,32 @@ const LoginScreen = ({ darkMode, setDarkMode, handleLogin, handleRegister, loadi
 
         const success = await handleRegister(formData);
         if (success) setMode('login');
+    };
+
+    const sendOtp = async () => {
+        if (!formData.email || !formData.email.includes('@')) {
+            alert('Please enter a valid email address.');
+            return;
+        }
+        setSendingOtp(true);
+        const success = await handleSendOtp(formData.email);
+        setSendingOtp(false);
+        if (success) {
+            setOtpSent(true);
+            alert('OTP has been sent to your email.');
+        }
+    };
+
+    const verifyOtp = async () => {
+        if (!formData.otp) {
+            alert('Please enter the OTP code.');
+            return;
+        }
+        const success = await handleVerifyOtp(formData.email, formData.otp);
+        if (success) {
+            setIsOtpVerified(true);
+            alert('Email verified successfully!');
+        }
     };
 
 
@@ -241,7 +281,44 @@ const LoginScreen = ({ darkMode, setDarkMode, handleLogin, handleRegister, loadi
                                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                                     darkMode={darkMode}
                                     variants={itemVariants}
+                                    action={
+                                        <button
+                                            type="button"
+                                            onClick={sendOtp}
+                                            disabled={sendingOtp || isOtpVerified}
+                                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isOtpVerified ? 'bg-emerald-500/10 text-emerald-500' : 'bg-emerald-500 text-white hover:bg-emerald-600 shadow-lg shadow-emerald-500/20 disabled:opacity-50'}`}
+                                        >
+                                            {isOtpVerified ? 'Verified' : (sendingOtp ? 'Sending...' : 'Send OTP')}
+                                        </button>
+                                    }
                                 />
+                                {otpSent && !isOtpVerified && (
+                                    <motion.div
+                                        initial={{ opacity: 0, height: 0 }}
+                                        animate={{ opacity: 1, height: 'auto' }}
+                                        className="space-y-4"
+                                    >
+                                        <InputField
+                                            icon={ShieldCheck}
+                                            label="Verify OTP"
+                                            type="text"
+                                            placeholder="Enter 6-digit code"
+                                            value={formData.otp}
+                                            onChange={(e) => setFormData({ ...formData, otp: e.target.value })}
+                                            darkMode={darkMode}
+                                            variants={itemVariants}
+                                            action={
+                                                <button
+                                                    type="button"
+                                                    onClick={verifyOtp}
+                                                    className="px-4 py-2 rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-[10px] font-black uppercase tracking-widest hover:scale-105 transition-all"
+                                                >
+                                                    Verify
+                                                </button>
+                                            }
+                                        />
+                                    </motion.div>
+                                )}
                                 <InputField
                                     icon={Lock}
                                     label="Password"
