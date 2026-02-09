@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const HomeVariant1 = ({ user, darkMode, setDarkMode, setCurrentScreen, setCurrentPage, myLoans, communitySuccess, handleLogout }) => {
+const HomeVariant1 = ({ user, darkMode, setDarkMode, setCurrentScreen, setCurrentPage, myLoans = [], communitySuccess, handleLogout }) => {
     const container = {
         hidden: { opacity: 0 },
         show: {
@@ -27,7 +27,12 @@ const HomeVariant1 = ({ user, darkMode, setDarkMode, setCurrentScreen, setCurren
         show: { opacity: 1, y: 0, transition: { type: 'spring', damping: 20, stiffness: 100 } }
     };
 
-    const totalBalance = 24500.85;
+    // Calculate Dynamic Balance based on approved loans or default
+    const totalBalance = myLoans
+        .filter(l => l.status === 'Approved' || l.status === 'Active')
+        .reduce((sum, loan) => sum + (parseFloat(loan.amount) || 0), 0);
+
+    const displayBalance = totalBalance > 0 ? totalBalance : 0;
 
     return (
         <motion.div
@@ -79,10 +84,10 @@ const HomeVariant1 = ({ user, darkMode, setDarkMode, setCurrentScreen, setCurren
 
                         <div>
                             <div className="flex items-center justify-between mb-2">
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">Available Balance</p>
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">Disbursed Balance</p>
                                 <ShieldCheck className="w-5 h-5 text-emerald-500" />
                             </div>
-                            <h3 className="text-4xl font-black tracking-tighter mb-1">৳{totalBalance.toLocaleString()}</h3>
+                            <h3 className="text-4xl font-black tracking-tighter mb-1">৳{displayBalance.toLocaleString()}</h3>
                             <div className="flex items-center gap-2 text-emerald-400 text-[10px] font-black uppercase tracking-wider">
                                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></div>
                                 Insured by Provati Safeguard
@@ -91,10 +96,10 @@ const HomeVariant1 = ({ user, darkMode, setDarkMode, setCurrentScreen, setCurren
 
                         <div className="flex gap-4 mt-8">
                             <button className="flex-1 bg-white text-slate-900 py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 transition-all">
-                                <ArrowUpRight className="w-4 h-4" /> Transfer
+                                <ArrowUpRight className="w-4 h-4" /> Withdraw
                             </button>
                             <button className="flex-1 bg-slate-800 text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 active:scale-95 transition-all">
-                                <ArrowDownLeft className="w-4 h-4" /> Deposit
+                                <ArrowDownLeft className="w-4 h-4" /> Repay
                             </button>
                         </div>
                     </div>

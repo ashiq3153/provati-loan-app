@@ -120,13 +120,18 @@ const CompleteProfileScreen = ({ user, profileForm, setProfileForm, darkMode, se
                     </motion.div>
                 </div>
 
-                <motion.div variants={item} className="pt-4">
+                <motion.div variants={item} className="pt-8">
                     <button
-                        onClick={() => setCurrentScreen('documentUpload')}
-                        className="w-full btn-primary flex items-center justify-center gap-3 py-5 group"
+                        onClick={() => {
+                            if (!profileForm.fullName || !profileForm.dob || !profileForm.gender || !profileForm.job || !profileForm.income) {
+                                alert("Please fill in all fields to proceed.");
+                                return;
+                            }
+                            setCurrentScreen('documentUpload');
+                        }}
+                        className="w-full py-5 rounded-2xl bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-black text-[11px] uppercase tracking-[0.2em] shadow-emerald-glow hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3"
                     >
-                        <span>Verify Documents</span>
-                        <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                        Proceed to Verification <ChevronRight className="w-4 h-4" />
                     </button>
                     <div className="flex items-center justify-center gap-2 mt-6 opacity-40">
                         <ShieldCheck className="w-4 h-4" />

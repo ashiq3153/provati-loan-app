@@ -277,6 +277,9 @@ const UserApp = () => {
     const handleSubmitLoan = async () => {
         setLoading(true);
         try {
+            // Simulate a short delay for better UX
+            await new Promise(resolve => setTimeout(resolve, 1500));
+
             const { error } = await supabase
                 .from('loans')
                 .insert([
@@ -292,10 +295,11 @@ const UserApp = () => {
 
             if (error) throw error;
 
-            alert('Loan Application Submitted Successfully!');
+            alert('Application Submitted Successfully! Our team will review your documents.');
             setCurrentScreen('home');
             fetchLoans(user.id);
         } catch (error) {
+            console.error('Loan submission error:', error);
             alert('Failed to submit loan: ' + error.message);
         } finally {
             setLoading(false);
