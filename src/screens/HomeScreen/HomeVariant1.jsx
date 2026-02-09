@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
-const HomeVariant1 = ({ user, darkMode, setDarkMode, setCurrentScreen, setCurrentPage, myLoans, communitySuccess }) => {
+const HomeVariant1 = ({ user, darkMode, setDarkMode, setCurrentScreen, setCurrentPage, myLoans, communitySuccess, handleLogout }) => {
     const container = {
         hidden: { opacity: 0 },
         show: {
@@ -40,11 +40,11 @@ const HomeVariant1 = ({ user, darkMode, setDarkMode, setCurrentScreen, setCurren
             <div className={`sticky top-0 z-40 px-6 py-4 flex items-center justify-between ${darkMode ? 'bg-slate-950/80' : 'bg-slate-50/80'} backdrop-blur-xl`}>
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-emerald-600 flex items-center justify-center text-white shadow-emerald-glow">
-                        <span className="font-black text-lg">{user.username.charAt(0).toUpperCase()}</span>
+                        <span className="font-black text-lg">{(user.fullName || user.username || 'G').charAt(0).toUpperCase()}</span>
                     </div>
                     <div>
-                        <p className={`text-[10px] font-bold tracking-widest uppercase ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Good Morning,</p>
-                        <h2 className={`text-lg font-black tracking-tight ${darkMode ? 'text-white' : 'text-slate-900'}`}>{user.username}</h2>
+                        <p className={`text-[10px] font-bold tracking-widest uppercase ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>Good Day,</p>
+                        <h2 className={`text-lg font-black tracking-tight ${darkMode ? 'text-white' : 'text-slate-900'}`}>{user.fullName || user.username}</h2>
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
@@ -55,8 +55,11 @@ const HomeVariant1 = ({ user, darkMode, setDarkMode, setCurrentScreen, setCurren
                         <Bell className="w-6 h-6" />
                         <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-emerald-500 rounded-full border-2 border-slate-950"></span>
                     </button>
-                    <button className="p-2.5 rounded-2xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-emerald-500 transition-colors">
-                        <Search className="w-6 h-6" />
+                    <button
+                        onClick={handleLogout}
+                        className="p-2.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 hover:bg-rose-500 hover:text-white transition-all active:scale-95"
+                    >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
                     </button>
                 </div>
             </div>

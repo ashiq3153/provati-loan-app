@@ -43,55 +43,88 @@ const UserApp = () => {
     const [loanForm, setLoanForm] = useState({ loanType: 'Micro-Enterprise', amount: 15000, period: '12 Months', dataConfirmed: false });
     const [profileForm, setProfileForm] = useState({ fullName: '', dob: '1995-05-15', gender: 'Male', nid: '', job: 'Micro-Entrepreneur', income: '35000' });
     const [myLoans, setMyLoans] = useState([]);
-
-    const handleLogin = async (idOrEmail, password) => {
-        setLoading(true);
-        try {
-            // First attempt: login by username
-            let { data, error } = await supabase
-                .from('users')
-                .select('*')
-                .eq('username', idOrEmail)
-                .eq('password', password)
-                .maybeSingle();
-
-            // Second attempt: if no user found, try by email (if column exists)
-            if (!data && !error) {
-                const { data: emailData, error: emailError } = await supabase
-                    .from('users')
-                    .select('*')
-                    .eq('email', idOrEmail)
-                    .eq('password', password)
-                    .maybeSingle();
-
-                if (!emailError && emailData) {
-                    data = emailData;
-                }
+    // Check for active session on load
+    React.useEffect(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+            if (session) {
+                fetchUserProfile(session.user.id);
             }
+        });
 
-            if (!data) {
-                alert('Invalid Credentials. Please check your User ID and password.');
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (session) {
+                fetchUserProfile(session.user.id);
             } else {
+                setIsLoggedIn(false);
+                setUser({ id: null, username: 'Guest', profileCompletion: 0 });
+            }
+        });
+
+        return () => subscription.unsubscribe();
+    }, []);
+
+    const fetchUserProfile = async (userId) => {
+        try {
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', userId)
+                .single();
+
+            if (data) {
                 setUser({
-                    ...user,
-                    username: data.username,
                     id: data.id,
+                    username: data.username,
                     fullName: data.full_name,
-                    email: data.email || idOrEmail
+                    email: data.email,
+                    profileCompletion: 45 // Calculate based on fields if needed
                 });
                 setIsLoggedIn(true);
                 setCurrentScreen('home');
                 fetchLoans(data.id);
             }
         } catch (error) {
-            console.error('Login error:', error);
-            alert('An unexpected error occurred. Please try again.');
+            console.error('Profile fetch error:', error);
+        }
+    };
+
+    const handleLogin = async (idOrEmail, password) => {
+        setLoading(true);
+        try {
+            let email = idOrEmail;
+
+            // If it doesn't look like an email, try to find the email by username in profiles
+            if (!idOrEmail.includes('@')) {
+                const { data: profile } = await supabase
+                    .from('profiles')
+                    .select('email')
+                    .eq('username', idOrEmail)
+                    .maybeSingle();
+
+                if (profile) {
+                    email = profile.email;
+                }
+            }
+
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email,
+                password,
+            });
+
+            if (error) throw error;
+        } catch (error) {
+            alert('Login failed: ' + error.message);
         }
         setLoading(false);
     };
 
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+        setIsLoggedIn(false);
+        setCurrentScreen('login');
+    };
 
-    const fetchLoans = async (userId = user.id) => {
+    const fetchLoans = async (userId) => {
         if (!userId) return;
         try {
             const { data, error } = await supabase
@@ -111,7 +144,7 @@ const UserApp = () => {
         const { error } = await supabase.auth.signInWithOtp({
             email,
             options: {
-                shouldCreateUser: true, // Allow creating user during verification
+                shouldCreateUser: true,
             }
         });
         if (error) {
@@ -125,7 +158,7 @@ const UserApp = () => {
         const { error } = await supabase.auth.verifyOtp({
             email,
             token,
-            type: 'email' // Reverting to 'email' for 6-digit token verification
+            type: 'email'
         });
         if (error) {
             alert('Verification Error: ' + error.message);
@@ -137,59 +170,90 @@ const UserApp = () => {
     const handleRegister = async (registerData) => {
         setLoading(true);
         try {
-            // Check if user already exists
-            const { data: existingUser } = await supabase
-                .from('users')
-                .select('id')
-                .eq('username', registerData.userId)
-                .maybeSingle();
-
-            if (existingUser) {
-                alert('User ID already recognized in our system.');
-                setLoading(false);
-                return false;
-            }
-
-            // Construct insert object dynamically to avoid schema errors
-            const userData = {
-                username: registerData.userId,
+            // 1. Sign up user in Auth
+            const { data: authData, error: authError } = await supabase.auth.signUp({
+                email: registerData.email,
                 password: registerData.password,
-                full_name: registerData.fullName
-            };
+            });
 
-            // Only include email if we can verify the column exists or just omit it 
-            // since Supabase Auth already tracks the email.
-            // For now, we omit it to solve the immediate schema error.
+            if (authError) throw authError;
 
-            const { error } = await supabase
-                .from('users')
-                .insert([userData]);
-
-            if (error) {
-                // If the error is about the email column, we can try one more time without it
-                if (error.message.includes('email')) {
-                    const { error: retryError } = await supabase
-                        .from('users')
-                        .insert([{
+            if (authData.user) {
+                // 2. Create public profile
+                const { error: profileError } = await supabase
+                    .from('profiles')
+                    .insert([
+                        {
+                            id: authData.user.id,
                             username: registerData.userId,
-                            password: registerData.password,
-                            full_name: registerData.fullName
-                        }]);
+                            full_name: registerData.fullName,
+                            email: registerData.email
+                        }
+                    ]);
 
-                    if (retryError) throw retryError;
-                } else {
-                    throw error;
-                }
+                if (profileError) throw profileError;
+
+                alert('Registration Successful! Please check your email for verification.');
+                return true;
             }
-
-            alert('Registration Successful! Account is now active.');
-            setLoading(false);
-            return true;
         } catch (error) {
-            console.error('Registration error:', error);
             alert('Registration failed: ' + error.message);
-            setLoading(false);
             return false;
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSubmitLoan = async () => {
+        setLoading(true);
+        try {
+            const { error } = await supabase
+                .from('loans')
+                .insert([
+                    {
+                        user_id: user.id,
+                        loan_type: loanForm.loanType,
+                        amount: loanForm.amount,
+                        period: loanForm.period,
+                        status: 'Pending Review',
+                        purpose: loanForm.loanType
+                    }
+                ]);
+
+            if (error) throw error;
+
+            alert('Loan Application Submitted Successfully!');
+            setCurrentScreen('home');
+            fetchLoans(user.id);
+        } catch (error) {
+            alert('Failed to submit loan: ' + error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSubmitProfile = async () => {
+        setLoading(true);
+        try {
+            const { error } = await supabase
+                .from('profiles')
+                .update({
+                    full_name: profileForm.fullName,
+                    dob: profileForm.dob,
+                    gender: profileForm.gender,
+                    occupation: profileForm.job,
+                    monthly_income: profileForm.income
+                })
+                .eq('id', user.id);
+
+            if (error) throw error;
+
+            alert('Profile Updated Successfully!');
+            setUser(prev => ({ ...prev, fullName: profileForm.fullName }));
+        } catch (error) {
+            alert('Failed to update profile: ' + error.message);
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -209,15 +273,15 @@ const UserApp = () => {
         let content;
         switch (currentScreen) {
             case 'home':
-                if (currentPage === 'home') content = <HomeVariant1 user={user} darkMode={darkMode} setDarkMode={setDarkMode} setCurrentScreen={setCurrentScreen} setCurrentPage={setCurrentPage} myLoans={myLoans} communitySuccess={communitySuccess} />;
+                if (currentPage === 'home') content = <HomeVariant1 user={user} darkMode={darkMode} setDarkMode={setDarkMode} setCurrentScreen={setCurrentScreen} setCurrentPage={setCurrentPage} myLoans={myLoans} communitySuccess={communitySuccess} handleLogout={handleLogout} />;
                 else if (currentPage === 'loans') content = <MyLoansScreen myLoans={myLoans} darkMode={darkMode} setCurrentPage={setCurrentPage} />;
                 else if (currentPage === 'stats') content = <StatsScreen darkMode={darkMode} setCurrentPage={setCurrentPage} />;
                 else content = <HomeVariant1 user={user} darkMode={darkMode} setDarkMode={setDarkMode} setCurrentScreen={setCurrentScreen} setCurrentPage={setCurrentPage} myLoans={myLoans} communitySuccess={communitySuccess} />;
                 break;
             case 'selectLoan': content = <SelectLoanScreen loanCategories={loanCategories} darkMode={darkMode} setCurrentScreen={setCurrentScreen} />; break;
             case 'loanRequest': content = <LoanRequestScreen loanForm={loanForm} setLoanForm={setLoanForm} darkMode={darkMode} setCurrentScreen={setCurrentScreen} />; break;
-            case 'loanAmount': content = <LoanAmountScreen darkMode={darkMode} setCurrentScreen={setCurrentScreen} />; break;
-            case 'completeProfile': content = <CompleteProfileScreen user={user} profileForm={profileForm} setProfileForm={setProfileForm} darkMode={darkMode} setCurrentScreen={setCurrentScreen} />; break;
+            case 'loanAmount': content = <LoanAmountScreen loanForm={loanForm} setLoanForm={setLoanForm} darkMode={darkMode} setCurrentScreen={setCurrentScreen} />; break;
+            case 'completeProfile': content = <CompleteProfileScreen user={user} profileForm={profileForm} setProfileForm={setProfileForm} darkMode={darkMode} setCurrentScreen={setCurrentScreen} handleSubmitProfile={handleSubmitProfile} />; break;
             case 'documentUpload': content = <DocumentUploadScreen darkMode={darkMode} setCurrentScreen={setCurrentScreen} handleSubmitLoan={handleSubmitLoan} />; break;
             case 'notifications': content = <NotificationsScreen darkMode={darkMode} setCurrentScreen={setCurrentScreen} />; break;
             default: content = <HomeVariant1 user={user} darkMode={darkMode} setDarkMode={setDarkMode} setCurrentScreen={setCurrentScreen} setCurrentPage={setCurrentPage} myLoans={myLoans} communitySuccess={communitySuccess} />;
