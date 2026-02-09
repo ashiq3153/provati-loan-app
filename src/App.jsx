@@ -47,22 +47,37 @@ const UserApp = () => {
     const handleLogin = async (idOrEmail, password) => {
         setLoading(true);
         try {
-            const { data, error } = await supabase
+            // First attempt: login by username
+            let { data, error } = await supabase
                 .from('users')
                 .select('*')
-                .or(`username.eq.${idOrEmail},email.eq.${idOrEmail}`)
+                .eq('username', idOrEmail)
                 .eq('password', password)
                 .maybeSingle();
 
-            if (error || !data) {
-                alert('Invalid User ID/Email or password');
+            // Second attempt: if no user found, try by email (if column exists)
+            if (!data && !error) {
+                const { data: emailData, error: emailError } = await supabase
+                    .from('users')
+                    .select('*')
+                    .eq('email', idOrEmail)
+                    .eq('password', password)
+                    .maybeSingle();
+
+                if (!emailError && emailData) {
+                    data = emailData;
+                }
+            }
+
+            if (!data) {
+                alert('Invalid Credentials. Please check your User ID and password.');
             } else {
                 setUser({
                     ...user,
                     username: data.username,
                     id: data.id,
                     fullName: data.full_name,
-                    email: data.email
+                    email: data.email || idOrEmail
                 });
                 setIsLoggedIn(true);
                 setCurrentScreen('home');
@@ -122,45 +137,57 @@ const UserApp = () => {
     const handleRegister = async (registerData) => {
         setLoading(true);
         try {
-            // Since OTP verification already happens in LoginScreen via Supabase Auth,
-            // the user is now authenticated. We just need to add their info to our custom users table.
-
-            // Check if user already exists in custom table
+            // Check if user already exists
             const { data: existingUser } = await supabase
                 .from('users')
                 .select('id')
-                .or(`username.eq.${registerData.userId},email.eq.${registerData.email}`)
+                .eq('username', registerData.userId)
                 .maybeSingle();
 
             if (existingUser) {
-                alert('User ID or Email already registered in our system.');
+                alert('User ID already recognized in our system.');
                 setLoading(false);
                 return false;
             }
+
+            // Construct insert object dynamically to avoid schema errors
+            const userData = {
+                username: registerData.userId,
+                password: registerData.password,
+                full_name: registerData.fullName
+            };
+
+            // Only include email if we can verify the column exists or just omit it 
+            // since Supabase Auth already tracks the email.
+            // For now, we omit it to solve the immediate schema error.
 
             const { error } = await supabase
                 .from('users')
-                .insert([
-                    {
-                        username: registerData.userId,
-                        password: registerData.password, // In a real app, use hashing or just Supabase Auth's password feature
-                        email: registerData.email,
-                        full_name: registerData.fullName
-                    }
-                ]);
+                .insert([userData]);
 
             if (error) {
-                alert('Profile registration failed: ' + error.message);
-                setLoading(false);
-                return false;
-            } else {
-                alert('Registration Successful! Account is now active.');
-                setLoading(false);
-                return true;
+                // If the error is about the email column, we can try one more time without it
+                if (error.message.includes('email')) {
+                    const { error: retryError } = await supabase
+                        .from('users')
+                        .insert([{
+                            username: registerData.userId,
+                            password: registerData.password,
+                            full_name: registerData.fullName
+                        }]);
+
+                    if (retryError) throw retryError;
+                } else {
+                    throw error;
+                }
             }
+
+            alert('Registration Successful! Account is now active.');
+            setLoading(false);
+            return true;
         } catch (error) {
             console.error('Registration error:', error);
-            alert('An error occurred during registration.');
+            alert('Registration failed: ' + error.message);
             setLoading(false);
             return false;
         }
