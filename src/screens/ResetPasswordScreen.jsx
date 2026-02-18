@@ -22,7 +22,7 @@ const InputField = ({ icon: Icon, label, type, placeholder, value, onChange, dar
     </div>
 );
 
-const ResetPasswordScreen = ({ darkMode, handleUpdatePassword }) => {
+const ResetPasswordScreen = ({ darkMode, handleUpdatePassword, showToast }) => {
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [loading, setLoading] = useState(false);
@@ -30,11 +30,11 @@ const ResetPasswordScreen = ({ darkMode, handleUpdatePassword }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (password.length < 6) {
-            alert('Password should be at least 6 characters.');
+            showToast('Password should be at least 6 characters.', 'warning');
             return;
         }
         if (password !== confirmPassword) {
-            alert('Passwords do not match.');
+            showToast('Passwords do not match.', 'error');
             return;
         }
 

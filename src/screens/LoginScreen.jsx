@@ -42,7 +42,7 @@ const InputField = ({ icon: Icon, label, type, placeholder, value, onChange, err
     </motion.div>
 );
 
-const LoginScreen = ({ darkMode, setDarkMode, handleLogin, handleRegister, handleSendOtp, handleVerifyOtp, handleForgotPassword, loading }) => {
+const LoginScreen = ({ darkMode, setDarkMode, handleLogin, handleRegister, handleSendOtp, handleVerifyOtp, handleForgotPassword, loading, showToast }) => {
     const [mode, setMode] = useState('login'); // 'login', 'register', 'forgot'
     const [formData, setFormData] = useState({
         userId: '',
@@ -58,6 +58,7 @@ const LoginScreen = ({ darkMode, setDarkMode, handleLogin, handleRegister, handl
     const [sendingOtp, setSendingOtp] = useState(false);
     const [verifyingOtp, setVerifyingOtp] = useState(false);
     const [resendTimer, setResendTimer] = useState(0);
+
 
     React.useEffect(() => {
         let interval;
@@ -102,19 +103,19 @@ const LoginScreen = ({ darkMode, setDarkMode, handleLogin, handleRegister, handl
     const onRegister = async (e) => {
         e.preventDefault();
         if (!validateUserId(formData.userId)) {
-            alert('User ID must contain both letters and numbers.');
+            showToast('User ID must contain both letters and numbers.', 'warning');
             return;
         }
         if (!isOtpVerified) {
-            alert('Please verify your email with OTP first.');
+            showToast('Please verify your email with OTP first.', 'warning');
             return;
         }
         if (!validatePassword(formData.password)) {
-            alert('Password must be at least 6 characters and contain both letters and numbers.');
+            showToast('Password must be 6+ chars with letters & numbers.', 'warning');
             return;
         }
         if (formData.password !== formData.confirmPassword) {
-            alert('Passwords do not match.');
+            showToast('Passwords do not match.', 'error');
             return;
         }
 
@@ -124,7 +125,7 @@ const LoginScreen = ({ darkMode, setDarkMode, handleLogin, handleRegister, handl
 
     const sendOtp = async () => {
         if (!formData.email || !formData.email.includes('@')) {
-            alert('Please enter a valid email address.');
+            showToast('Please enter a valid email address.', 'error');
             return;
         }
         setSendingOtp(true);
@@ -139,7 +140,7 @@ const LoginScreen = ({ darkMode, setDarkMode, handleLogin, handleRegister, handl
     const onForgotPassword = async (e) => {
         e.preventDefault();
         if (!formData.email || !formData.email.includes('@')) {
-            alert('Please enter a valid email address.');
+            showToast('Please enter a valid email address.', 'error');
             return;
         }
         await handleForgotPassword(formData.email);

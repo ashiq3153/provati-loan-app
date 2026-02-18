@@ -1,17 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-// Vercel Build Trigger: v1.0.3
 import {
     LayoutGrid,
     CreditCard,
     PieChart,
     User,
-    Bell,
-    Search,
-    ArrowLeft,
-    ShieldCheck,
-    TrendingUp,
-    ChevronRight
+    ArrowRight,
+    Loader2
 } from 'lucide-react';
 
 // Data
@@ -31,53 +26,93 @@ import NotificationsScreen from './screens/NotificationsScreen';
 import ResetPasswordScreen from './screens/ResetPasswordScreen';
 import CustomToast from './components/CustomToast';
 
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import AdminDashboard from './screens/AdminDashboard';
 import { supabase } from './lib/supabase';
 
+// Helper to check for password recovery in URL
+const isRecoveryFlow = () => {
+    const hash = window.location.hash;
+    return hash && hash.includes('type=recovery');
+};
+
 const UserApp = () => {
-    const [isLoggedIn, setIsLoggedIn] = useState(false);
-    const [user, setUser] = useState({ id: 1, username: 'Guest', profileCompletion: 45 });
+    const [session, setSession] = useState(null);
+    const [user, setUser] = useState({ id: null, username: 'Guest', profileCompletion: 0 });
+    const [appReady, setAppReady] = useState(false);
     const [darkMode, setDarkMode] = useState(false);
+
+    // Navigation State
     const [currentScreen, setCurrentScreen] = useState('login');
     const [currentPage, setCurrentPage] = useState('home');
+
+    // Operation State
     const [loading, setLoading] = useState(false);
     const [isPasswordReset, setIsPasswordReset] = useState(false);
-    const [toast, setToast] = useState(null); // { message, type }
+    const [toast, setToast] = useState(null);
+
+    // Forms State
     const [loanForm, setLoanForm] = useState({ loanType: 'Micro-Enterprise', amount: 15000, period: '12 Months', dataConfirmed: false });
     const [profileForm, setProfileForm] = useState({ fullName: '', dob: '1995-05-15', gender: 'Male', nid: '', job: 'Micro-Entrepreneur', income: '35000' });
     const [myLoans, setMyLoans] = useState([]);
-    // Check for active session on load
-    React.useEffect(() => {
+
+    // --- Toast Helper ---
+    const showToast = (message, type = 'success') => {
+        setToast({ message, type });
+        setTimeout(() => setToast(null), 4000);
+    };
+
+    // --- Auth Initialization ---
+    useEffect(() => {
+        // Check if we are in a recovery flow immediately
+        if (isRecoveryFlow()) {
+            setIsPasswordReset(true);
+            setAppReady(true);
+            return;
+        }
+
+        // Initialize Session
         supabase.auth.getSession().then(({ data: { session } }) => {
+            setSession(session);
             if (session) {
                 fetchUserProfile(session.user.id);
+            } else {
+                setAppReady(true);
             }
         });
 
+        // Listen for changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             console.log("Auth Event:", event);
+            setSession(session);
+
             if (event === 'PASSWORD_RECOVERY') {
                 setIsPasswordReset(true);
+                setAppReady(true);
             } else if (event === 'SIGNED_IN' && session) {
-                fetchUserProfile(session.user.id);
-            } else if (event === 'SIGNED_OUT') {
-                setIsLoggedIn(false);
-                setUser({ id: null, username: 'Guest', profileCompletion: 0 });
+                await fetchUserProfile(session.user.id);
                 setIsPasswordReset(false);
+            } else if (event === 'SIGNED_OUT') {
+                setUser({ id: null, username: 'Guest', profileCompletion: 0 });
+                setCurrentScreen('login');
+                setIsPasswordReset(false);
+            } else if (event === 'USER_UPDATED') {
+                // Handle password update success if needed
+                if (session) fetchUserProfile(session.user.id);
             }
         });
 
         return () => subscription.unsubscribe();
     }, []);
 
+    // --- Data Fetching ---
     const fetchUserProfile = async (userId) => {
         try {
             const { data, error } = await supabase
                 .from('profiles')
                 .select('*')
                 .eq('id', userId)
-                .single();
+                .maybeSingle();
 
             if (data) {
                 setUser({
@@ -85,228 +120,240 @@ const UserApp = () => {
                     username: data.username,
                     fullName: data.full_name,
                     email: data.email,
-                    profileCompletion: 45 // Calculate based on fields if needed
+                    profileCompletion: 45
                 });
-                setIsLoggedIn(true);
                 setCurrentScreen('home');
                 fetchLoans(data.id);
+            } else {
+                // User exists in Auth but not in Profiles (rare, but possible if reg failed halfway)
+                // We let them stay logged in but maybe direct to profile completion? 
+                // For now, treat as guest or logged in with missing data
+                console.warn('User logged in but no profile found.');
+                setCurrentScreen('home'); // Or 'completeProfile'
             }
         } catch (error) {
             console.error('Profile fetch error:', error);
-        }
-    };
-
-    const showToast = (message, type = 'success') => {
-        setToast({ message, type });
-        setTimeout(() => setToast(null), 4000);
-    };
-
-    const handleLogin = async (idOrEmail, password) => {
-        setLoading(true);
-        console.log("Attempting login update with:", idOrEmail); // Debug Log
-
-        try {
-            let email = idOrEmail;
-
-            // If it doesn't look like an email, try to find the email by username in profiles
-            if (!idOrEmail.includes('@')) {
-                const { data: profile, error: profileError } = await supabase
-                    .from('profiles')
-                    .select('email')
-                    .eq('username', idOrEmail)
-                    .maybeSingle();
-
-                if (profileError) {
-                    console.error("Profile lookup error:", profileError);
-                }
-
-                if (profile) {
-                    email = profile.email;
-                    console.log("Resolved username to email:", email);
-                } else {
-                    console.warn("Username not found in profiles.");
-                }
-            }
-
-            const { data, error } = await supabase.auth.signInWithPassword({
-                email,
-                password,
-            });
-
-            if (error) {
-                console.error("Login Error:", error);
-                throw error;
-            }
-
-            console.log("Login Successful:", data);
-
-        } catch (error) {
-            console.error("Catch Block Login Error:", error);
-            showToast(error.message || 'Login failed', 'error');
-        }
-        setLoading(false);
-    };
-
-    const handleForgotPassword = async (email) => {
-        setLoading(true);
-        try {
-            const { error } = await supabase.auth.resetPasswordForEmail(email, {
-                redirectTo: `${window.location.origin}/update-password`,
-            });
-            if (error) throw error;
-            showToast('Password reset link sent to your email!', 'success');
-        } catch (error) {
-            console.error('Reset Password Error:', error);
-            showToast(error.message || 'Failed to send reset email', 'error');
         } finally {
-            setLoading(false);
+            setAppReady(true);
         }
-    };
-
-    const handleUpdatePassword = async (newPassword) => {
-        try {
-            const { error } = await supabase.auth.updateUser({ password: newPassword });
-            if (error) throw error;
-            showToast('Password updated! Please login.', 'success');
-            setIsPasswordReset(false);
-            // After update, user is logged in, so we might need to fetch profile or just redirect to home
-            // But let's just let the auth listener handle the session update or force logout to re-login
-            await supabase.auth.signOut(); // Force re-login for security
-            setIsLoggedIn(false);
-        } catch (error) {
-            console.error('Update Password Error:', error);
-            showToast(error.message || 'Update failed', 'error');
-        }
-    };
-
-    const handleLogout = async () => {
-        await supabase.auth.signOut();
-        setIsLoggedIn(false);
-        setCurrentScreen('login');
     };
 
     const fetchLoans = async (userId) => {
         if (!userId) return;
-        try {
-            const { data, error } = await supabase
-                .from('loans')
-                .select('*')
-                .eq('user_id', userId);
+        const { data } = await supabase.from('loans').select('*').eq('user_id', userId);
+        if (data) setMyLoans(data);
+    };
 
-            if (!error) {
-                setMyLoans(data);
+    // --- Auth Actions ---
+
+    const handleLogin = async (idOrEmail, password) => {
+        setLoading(true);
+        try {
+            const loginId = idOrEmail?.trim();
+            const pass = password?.trim();
+
+            if (!loginId || !pass) {
+                showToast('Please enter both User ID/Email and Password.', 'error');
+                return;
             }
+
+            let email = loginId;
+
+            // Resolve Username to Email if not an email address
+            if (!loginId.includes('@')) {
+                const { data: profile, error } = await supabase
+                    .from('profiles')
+                    .select('email')
+                    .eq('username', loginId)
+                    .maybeSingle();
+
+                if (error || !profile) {
+                    throw new Error('Username not found. Please register first.');
+                }
+                email = profile.email;
+            }
+
+            const { data, error } = await supabase.auth.signInWithPassword({
+                email,
+                password: pass
+            });
+
+            if (error) throw error;
+            if (!data.session) throw new Error('Login failed. Please try again.');
+
+            showToast('Welcome back!', 'success');
         } catch (error) {
-            console.error('Fetch error:', error);
+            console.error("Login Error:", error);
+            let msg = error.message;
+            if (msg.includes('Invalid login credentials')) msg = 'Incorrect Email or Password.';
+            showToast(msg, 'error');
+        } finally {
+            setLoading(false);
         }
     };
 
     const handleSendOtp = async (email) => {
         const { error } = await supabase.auth.signInWithOtp({
             email,
-            options: {
-                shouldCreateUser: true,
-            }
+            options: { shouldCreateUser: true }
         });
         if (error) {
-            showToast(error.message || 'OTP Error', 'error');
+            showToast(error.message, 'error');
             return false;
         }
-        showToast('OTP sent to your email!', 'info');
+        showToast('OTP code sent to ' + email, 'success');
         return true;
     };
 
     const handleVerifyOtp = async (email, token) => {
-        const { error } = await supabase.auth.verifyOtp({
+        const { data, error } = await supabase.auth.verifyOtp({
             email,
             token,
             type: 'email'
         });
         if (error) {
-            showToast(error.message || 'Verification failed', 'error');
+            showToast(error.message, 'error');
             return false;
         }
         showToast('Email verified successfully!', 'success');
         return true;
     };
 
+    const checkUsernameUniqueness = async (username) => {
+        const { count, error } = await supabase
+            .from('profiles')
+            .select('username', { count: 'exact', head: true })
+            .eq('username', username);
+        if (error) return false;
+        return count === 0;
+    };
+
     const handleRegister = async (registerData) => {
         setLoading(true);
         try {
-            // 1. Sign up user in Auth
-            const { data: authData, error: authError } = await supabase.auth.signUp({
-                email: registerData.email,
-                password: registerData.password,
-                options: {
-                    emailRedirectTo: window.location.origin,
+            // 1. Check Username
+            const isUnique = await checkUsernameUniqueness(registerData.userId);
+            if (!isUnique) {
+                showToast('Username already taken.', 'warning');
+                return false;
+            }
+
+            // 2. Check Session (from OTP)
+            const { data: { session } } = await supabase.auth.getSession();
+            let userId = session?.user?.id;
+
+            if (session) {
+                // Update Password for OTP-authenticated user
+                const { error: updateError } = await supabase.auth.updateUser({
+                    password: registerData.password,
                     data: {
                         username: registerData.userId,
                         full_name: registerData.fullName
                     }
-                }
-            });
+                });
+                if (updateError) throw updateError;
+            } else {
+                // Standard Signup (Fallback)
+                const { data: authData, error: authError } = await supabase.auth.signUp({
+                    email: registerData.email,
+                    password: registerData.password,
+                    options: {
+                        data: {
+                            username: registerData.userId,
+                            full_name: registerData.fullName
+                        }
+                    }
+                });
+                if (authError) throw authError;
+                userId = authData.user?.id;
+            }
 
-            if (authError) throw authError;
-
-            if (authData.user) {
-                // Wait a bit for auth user to be fully created
-                await new Promise(resolve => setTimeout(resolve, 1000));
-
-                // 2. Create public profile
+            // 3. Create Profile
+            if (userId) {
+                // Upsert profile to be safe
                 const { error: profileError } = await supabase
                     .from('profiles')
-                    .insert([
-                        {
-                            id: authData.user.id,
-                            username: registerData.userId,
-                            full_name: registerData.fullName,
-                            email: registerData.email
-                        }
-                    ]);
+                    .upsert({
+                        id: userId,
+                        username: registerData.userId,
+                        full_name: registerData.fullName,
+                        email: registerData.email
+                    }, { onConflict: 'id' });
 
-                if (profileError) {
-                    console.error('Profile creation error:', profileError);
-                    // If profile creation fails, still allow user to continue
-                    // They can complete profile later
-                    alert('Account created! Please login to continue.');
-                } else {
-                    alert('Registration Successful! You can now login with your credentials.');
-                }
+                if (profileError) throw profileError;
+
+                showToast('Registration Successful!', 'success');
+                await fetchUserProfile(userId);
                 return true;
             }
+            return false;
+
         } catch (error) {
-            console.error('Registration error:', error);
-            alert('Registration failed: ' + error.message);
+            console.error('Registration Error:', error);
+            showToast(error.message, 'error');
             return false;
         } finally {
             setLoading(false);
         }
     };
 
+    const handleForgotPassword = async (email) => {
+        setLoading(true);
+        try {
+            // Ensure we redirect to the current origin
+            const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                redirectTo: window.location.origin,
+            });
+            if (error) throw error;
+            showToast('Recovery email sent. Please check your inbox.', 'success');
+        } catch (error) {
+            showToast(error.message, 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleUpdatePassword = async (newPassword) => {
+        setLoading(true);
+        try {
+            const { error } = await supabase.auth.updateUser({ password: newPassword });
+            if (error) throw error;
+            showToast('Password reset successfully. Please login.', 'success');
+            setIsPasswordReset(false);
+            // Sign out to force clean login with new credentials
+            await supabase.auth.signOut();
+        } catch (error) {
+            showToast(error.message, 'error');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleLogout = async () => {
+        await supabase.auth.signOut();
+    };
+
     const handleSubmitLoan = async () => {
         setLoading(true);
         try {
-            // Simulate a short delay for better UX
             await new Promise(resolve => setTimeout(resolve, 1500));
 
             const { error } = await supabase
                 .from('loans')
-                .insert([
-                    {
-                        user_id: user.id,
-                        loan_type: loanForm.loanType,
-                        amount: loanForm.amount,
-                        period: loanForm.period,
-                        status: 'Pending Review',
-                        purpose: loanForm.loanType
-                    }
-                ]);
+                .insert([{
+                    user_id: user.id || session?.user?.id,
+                    loan_type: loanForm.loanType,
+                    amount: loanForm.amount,
+                    period: loanForm.period,
+                    status: 'Pending Review',
+                    purpose: loanForm.loanType
+                }]);
 
             if (error) throw error;
 
             showToast('Application Submitted! Our team is reviewing it.', 'success');
             setCurrentScreen('home');
-            fetchLoans(user.id);
+            if (user.id) fetchLoans(user.id);
         } catch (error) {
             console.error('Loan submission error:', error);
             showToast('Failed to submit loan: ' + error.message, 'error');
@@ -327,7 +374,7 @@ const UserApp = () => {
                     occupation: profileForm.job,
                     monthly_income: profileForm.income
                 })
-                .eq('id', user.id);
+                .eq('id', user.id || session?.user?.id);
 
             if (error) throw error;
 
@@ -340,52 +387,75 @@ const UserApp = () => {
         }
     };
 
-    const renderScreen = () => {
+    // --- Render Logic ---
+    const renderContent = () => {
+        // 1. Password Reset Flow
         if (isPasswordReset) {
-            return <ResetPasswordScreen darkMode={darkMode} handleUpdatePassword={handleUpdatePassword} />;
+            return <ResetPasswordScreen darkMode={darkMode} handleUpdatePassword={handleUpdatePassword} showToast={showToast} />;
         }
 
-        if (!isLoggedIn) return (
-            <LoginScreen
-                darkMode={darkMode}
-                setDarkMode={setDarkMode}
-                handleLogin={handleLogin}
-                handleRegister={handleRegister}
-                handleSendOtp={handleSendOtp}
-                handleVerifyOtp={handleVerifyOtp}
-                handleForgotPassword={handleForgotPassword}
-                loading={loading}
-            />
-        );
+        // 2. Loading State
+        if (!appReady) {
+            return (
+                <div className="flex items-center justify-center min-h-screen bg-slate-50 dark:bg-slate-950">
+                    <Loader2 className="w-10 h-10 text-emerald-500 animate-spin" />
+                </div>
+            );
+        }
 
-        let content;
+        // 3. Login Screen
+        if (!session) {
+            return (
+                <LoginScreen
+                    darkMode={darkMode}
+                    setDarkMode={setDarkMode}
+                    handleLogin={handleLogin}
+                    handleRegister={handleRegister}
+                    handleSendOtp={handleSendOtp}
+                    handleVerifyOtp={handleVerifyOtp}
+                    handleForgotPassword={handleForgotPassword}
+                    loading={loading}
+                    showToast={showToast}
+                />
+            );
+        }
+
+        // 4. Main App Screens
         switch (currentScreen) {
             case 'home':
-                if (currentPage === 'home') content = <HomeVariant1 user={user} darkMode={darkMode} setDarkMode={setDarkMode} setCurrentScreen={setCurrentScreen} setCurrentPage={setCurrentPage} myLoans={myLoans} communitySuccess={communitySuccess} handleLogout={handleLogout} />;
-                else if (currentPage === 'loans') content = <MyLoansScreen myLoans={myLoans} darkMode={darkMode} setCurrentPage={setCurrentPage} />;
-                else if (currentPage === 'stats') content = <StatsScreen darkMode={darkMode} setCurrentPage={setCurrentPage} />;
-                else content = <HomeVariant1 user={user} darkMode={darkMode} setDarkMode={setDarkMode} setCurrentScreen={setCurrentScreen} setCurrentPage={setCurrentPage} myLoans={myLoans} communitySuccess={communitySuccess} />;
-                break;
-            case 'selectLoan': content = <SelectLoanScreen loanCategories={loanCategories} darkMode={darkMode} setCurrentScreen={setCurrentScreen} />; break;
-            case 'loanRequest': content = <LoanRequestScreen loanForm={loanForm} setLoanForm={setLoanForm} darkMode={darkMode} setCurrentScreen={setCurrentScreen} />; break;
-            case 'loanAmount': content = <LoanAmountScreen loanForm={loanForm} setLoanForm={setLoanForm} darkMode={darkMode} setCurrentScreen={setCurrentScreen} />; break;
-            case 'completeProfile': content = <CompleteProfileScreen user={user} profileForm={profileForm} setProfileForm={setProfileForm} darkMode={darkMode} setCurrentScreen={setCurrentScreen} handleSubmitProfile={handleSubmitProfile} showToast={showToast} />; break;
-            case 'documentUpload': content = <DocumentUploadScreen darkMode={darkMode} setCurrentScreen={setCurrentScreen} handleSubmitLoan={handleSubmitLoan} showToast={showToast} />; break;
-            case 'notifications': content = <NotificationsScreen darkMode={darkMode} setCurrentScreen={setCurrentScreen} />; break;
-            default: content = <HomeVariant1 user={user} darkMode={darkMode} setDarkMode={setDarkMode} setCurrentScreen={setCurrentScreen} setCurrentPage={setCurrentPage} myLoans={myLoans} communitySuccess={communitySuccess} />;
+                return currentPage === 'home'
+                    ? <HomeVariant1 user={user} darkMode={darkMode} setDarkMode={setDarkMode} setCurrentScreen={setCurrentScreen} setCurrentPage={setCurrentPage} myLoans={myLoans} communitySuccess={communitySuccess} handleLogout={handleLogout} />
+                    : currentPage === 'loans'
+                        ? <MyLoansScreen myLoans={myLoans} darkMode={darkMode} setCurrentPage={setCurrentPage} />
+                        : currentPage === 'stats'
+                            ? <StatsScreen darkMode={darkMode} setCurrentPage={setCurrentPage} />
+                            : <HomeVariant1 user={user} darkMode={darkMode} setDarkMode={setDarkMode} setCurrentScreen={setCurrentScreen} setCurrentPage={setCurrentPage} myLoans={myLoans} communitySuccess={communitySuccess} />;
+            case 'selectLoan': return <SelectLoanScreen loanCategories={loanCategories} darkMode={darkMode} setCurrentScreen={setCurrentScreen} />;
+            case 'loanRequest': return <LoanRequestScreen loanForm={loanForm} setLoanForm={setLoanForm} darkMode={darkMode} setCurrentScreen={setCurrentScreen} />;
+            case 'loanAmount': return <LoanAmountScreen loanForm={loanForm} setLoanForm={setLoanForm} darkMode={darkMode} setCurrentScreen={setCurrentScreen} />;
+            case 'completeProfile': return <CompleteProfileScreen user={user} profileForm={profileForm} setProfileForm={setProfileForm} darkMode={darkMode} setCurrentScreen={setCurrentScreen} handleSubmitProfile={handleSubmitProfile} showToast={showToast} />;
+            case 'documentUpload': return <DocumentUploadScreen darkMode={darkMode} setCurrentScreen={setCurrentScreen} handleSubmitLoan={handleSubmitLoan} showToast={showToast} />;
+            case 'notifications': return <NotificationsScreen darkMode={darkMode} setCurrentScreen={setCurrentScreen} />;
+            default: return <HomeVariant1 user={user} darkMode={darkMode} setDarkMode={setDarkMode} setCurrentScreen={setCurrentScreen} setCurrentPage={setCurrentPage} myLoans={myLoans} communitySuccess={communitySuccess} />;
         }
+    };
 
-        return (
-            <AnimatePresence mode="wait">
-                <motion.div
-                    key={currentScreen + currentPage}
-                    initial={{ opacity: 0, x: 10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -10 }}
-                    transition={{ duration: 0.2 }}
-                >
-                    {content}
-                </motion.div>
+    return (
+        <div className={`transition-colors duration-500 ${darkMode ? 'dark bg-slate-950' : 'bg-slate-50'}`}>
+            <div className="max-w-md mx-auto min-h-screen relative shadow-2xl overflow-hidden bg-inherit">
+                <AnimatePresence mode="wait">
+                    <motion.div
+                        key={session ? (currentScreen + currentPage) : 'auth'}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.2 }}
+                    >
+                        {renderContent()}
+                    </motion.div>
+                </AnimatePresence>
+
+                {/* Toasts */}
                 <AnimatePresence>
                     {toast && (
                         <CustomToast
@@ -396,17 +466,10 @@ const UserApp = () => {
                         />
                     )}
                 </AnimatePresence>
-            </AnimatePresence>
-        );
-    };
 
-    return (
-        <div className={`transition-colors duration-500 ${darkMode ? 'dark bg-slate-950' : 'bg-slate-50'}`}>
-            <div className="max-w-md mx-auto min-h-screen relative shadow-[0_0_100px_rgba(0,0,0,0.1)] overflow-hidden bg-inherit">
-                {renderScreen()}
-
-                {isLoggedIn && currentScreen === 'home' && (
-                    <div className={`fixed bottom-0 left-0 right-0 z-50 px-6 py-4 ${darkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/80 border-slate-100'} backdrop-blur-xl border-t flex items-center justify-around rounded-t-[2.5rem] shadow-2xl`}>
+                {/* Bottom Navigation (Only when logged in and on main screens) */}
+                {session && currentScreen === 'home' && (
+                    <div className={`fixed bottom-0 left-0 right-0 z-50 px-6 py-4 ${darkMode ? 'bg-slate-950/80 border-slate-800' : 'bg-white/80 border-slate-100'} backdrop-blur-xl border-t flex items-center justify-around rounded-t-[2.5rem] shadow-2xl max-w-md mx-auto`}>
                         {[
                             { id: 'home', icon: LayoutGrid, label: 'Home' },
                             { id: 'loans', icon: CreditCard, label: 'Loans' },
